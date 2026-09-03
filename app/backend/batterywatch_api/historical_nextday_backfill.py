@@ -16,7 +16,6 @@ from .backfill_artifacts import (
 )
 from .backfill_ledger import (
     BackfillClaim,
-    BackfillItemCompletion,
     PostgreSQLBackfillLedger,
 )
 from .battery_assets import BatteryAsset
@@ -369,9 +368,10 @@ def run_nextday_soc_backfill_claim(
                 )
             )
         )
-        completion = BackfillItemCompletion(fully_replayed, source_rows)
         with _connection_scope(connect, database_url) as connection:
-            ledger_factory(connection).complete(claim, completion)
+            ledger_factory(connection).complete(
+                claim, records_imported=source_rows
+            )
         return HistoricalNextDayBackfillResult(
             outer_result.artifact_sha256,
             outer_result.replayed,

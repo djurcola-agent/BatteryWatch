@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 
 from batterywatch_api.backfill_artifacts import BackfillArtifactResult
-from batterywatch_api.backfill_ledger import BackfillClaim, BackfillItemCompletion
+from batterywatch_api.backfill_ledger import BackfillClaim
 from batterywatch_api.battery_assets import load_battery_assets
 from batterywatch_api.historical_nextday_backfill import (
     HistoricalNextDayBackfillResult,
@@ -43,7 +43,7 @@ class FakeConnection:
 
 class FakeLedger:
     failures: list[tuple[str, str]] = []
-    completions: list[tuple[str, BackfillItemCompletion]] = []
+    completions: list[tuple[str, int]] = []
 
     def __init__(self, connection) -> None:
         pass
@@ -52,8 +52,8 @@ class FakeLedger:
         self.failures.append((claim.run_id, error_summary))
         return SimpleNamespace(replayed=False)
 
-    def complete(self, claim, completion):
-        self.completions.append((claim.run_id, completion))
+    def complete(self, claim, *, records_imported: int):
+        self.completions.append((claim.run_id, records_imported))
         return SimpleNamespace(replayed=False)
 
 
@@ -283,7 +283,7 @@ class HistoricalNextDayBackfillTests(unittest.TestCase):
         self.assertEqual([len(call) for call in ingest_calls], [1, 1])
         self.assertEqual(
             FakeLedger.completions,
-            [(claim.run_id, BackfillItemCompletion(False, 2))],
+            [(claim.run_id, 2)],
         )
         self.assertEqual(FakeLedger.failures, [])
         self.assertEqual(
@@ -378,7 +378,7 @@ class HistoricalNextDayBackfillTests(unittest.TestCase):
         self.assertEqual(events, ["soc", "fcas"])
         self.assertEqual(
             FakeLedger.completions,
-            [(claim.run_id, BackfillItemCompletion(False, 1))],
+            [(claim.run_id, 1)],
         )
         self.assertEqual(FakeLedger.failures, [])
         self.assertEqual(result.fcas_raw_inserted, 1)
@@ -499,7 +499,7 @@ class HistoricalNextDayBackfillTests(unittest.TestCase):
 
         self.assertEqual(
             FakeLedger.completions,
-            [(claim.run_id, BackfillItemCompletion(True, 1))],
+            [(claim.run_id, 1)],
         )
         self.assertEqual(
             result,
@@ -549,7 +549,7 @@ class HistoricalNextDayBackfillTests(unittest.TestCase):
         )
         self.assertEqual(
             FakeLedger.completions,
-            [(partial_claim.run_id, BackfillItemCompletion(False, 1))],
+            [(partial_claim.run_id, 1)],
         )
 
     def test_fails_closed_when_range_selects_no_daily_member(self) -> None:
@@ -670,7 +670,7 @@ class HistoricalNextDayBackfillTests(unittest.TestCase):
         self.assertEqual([len(rows) for rows in ingested], [1])
         self.assertEqual(
             FakeLedger.completions,
-            [(claim.run_id, BackfillItemCompletion(False, 1))],
+            [(claim.run_id, 1)],
         )
 
 
