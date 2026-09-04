@@ -32,6 +32,13 @@ NEXTDAY_INDEX_URL = (
 NEXTDAY_MONTHLY_ARCHIVE_URL = (
     NEXTDAY_INDEX_URL + "PUBLIC_NEXT_DAY_DISPATCH_20250701.zip"
 )
+NEXTDAY_CURRENT_INDEX_URL = (
+    "https://www.nemweb.com.au/REPORTS/CURRENT/Next_Day_Dispatch/"
+)
+NEXTDAY_CURRENT_ARTIFACT_URL = (
+    NEXTDAY_CURRENT_INDEX_URL
+    + "PUBLIC_NEXT_DAY_DISPATCH_20260903_0000000535522925.zip"
+)
 
 
 class FakeResponse:
@@ -152,6 +159,61 @@ class FetchNemwebResourceTests(unittest.TestCase):
                 max_bytes=limit + 1,
                 opener=opener,
             )
+
+    def test_fetches_current_nextday_index_and_daily_artifact_with_current_bound(self) -> None:
+        for url, body in (
+            (NEXTDAY_CURRENT_INDEX_URL, b"<html>current Next Day index</html>"),
+            (NEXTDAY_CURRENT_ARTIFACT_URL, b"PK current Next Day artifact"),
+        ):
+            with self.subTest(url=url):
+                opener = FakeOpener(FakeResponse(body, url=url))
+                result = http.fetch_nemweb_resource(
+                    url,
+                    max_bytes=16 * 1024 * 1024,
+                    opener=opener,
+                )
+
+                self.assertEqual((result.requested_url, result.body), (url, body))
+                self.assertEqual(opener.calls[0][0].full_url, url)
+
+        with self.assertRaises(http.NemwebHttpError):
+            http.fetch_nemweb_resource(
+                NEXTDAY_CURRENT_ARTIFACT_URL,
+                max_bytes=16 * 1024 * 1024 + 1,
+                opener=FakeOpener(
+                    FakeResponse(b"PK current Next Day artifact", url=NEXTDAY_CURRENT_ARTIFACT_URL)
+                ),
+            )
+
+    def test_rejects_current_nextday_near_miss_urls_before_opening(self) -> None:
+        filename = "PUBLIC_NEXT_DAY_DISPATCH_20260903_1.zip"
+        invalid_urls = (
+            "http://www.nemweb.com.au/REPORTS/CURRENT/Next_Day_Dispatch/",
+            "https://nemweb.com.au/REPORTS/CURRENT/Next_Day_Dispatch/",
+            "https://www.nemweb.com.au:443/REPORTS/CURRENT/Next_Day_Dispatch/",
+            NEXTDAY_CURRENT_INDEX_URL + "?latest=1",
+            NEXTDAY_CURRENT_INDEX_URL + "#fragment",
+            NEXTDAY_CURRENT_INDEX_URL + "extra/",
+            NEXTDAY_CURRENT_ARTIFACT_URL + "?download=1",
+            NEXTDAY_CURRENT_ARTIFACT_URL + "#fragment",
+            NEXTDAY_CURRENT_INDEX_URL + "PUBLIC_NEXT_DAY_DISPATCH_2026093_1.zip",
+            NEXTDAY_CURRENT_INDEX_URL + "PUBLIC_NEXT_DAY_DISPATCH_202609030_1.zip",
+            NEXTDAY_CURRENT_INDEX_URL + "PUBLIC_NEXT_DAY_DISPATCH_20260903_.zip",
+            NEXTDAY_CURRENT_INDEX_URL + "PUBLIC_NEXT_DAY_DISPATCH_20260903_1.txt",
+            NEXTDAY_CURRENT_INDEX_URL + "extra/" + filename,
+            NEXTDAY_CURRENT_ARTIFACT_URL + "/extra",
+        )
+
+        for url in invalid_urls:
+            with self.subTest(url=url):
+                opener = FakeOpener(FakeResponse(b"unexpected", url=url))
+                with self.assertRaises(http.NemwebHttpError):
+                    http.fetch_nemweb_resource(
+                        url,
+                        max_bytes=1024,
+                        opener=opener,
+                    )
+                self.assertEqual(opener.calls, [])
 
     def test_fetches_official_dispatch_price_index_and_artifact(self) -> None:
         for url, body in (

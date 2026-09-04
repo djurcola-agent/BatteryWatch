@@ -15,6 +15,7 @@ _USER_AGENT = "BatteryWatch-Collector/0.1"
 _INDEX_URLS = frozenset((
     "https://www.nemweb.com.au/REPORTS/CURRENT/Dispatch_SCADA/",
     "https://www.nemweb.com.au/REPORTS/CURRENT/DispatchIS_Reports/",
+    "https://www.nemweb.com.au/REPORTS/CURRENT/Next_Day_Dispatch/",
     "https://www.nemweb.com.au/REPORTS/ARCHIVE/Next_Day_Dispatch/",
 ))
 _CURRENT_RESOURCE_MAX_BYTES = 16 * 1024 * 1024
@@ -27,6 +28,9 @@ _CURRENT_ARTIFACT_PATH_RE = re.compile(
     r"|"
     r"/REPORTS/CURRENT/DispatchIS_Reports/"
     r"PUBLIC_DISPATCHIS_[0-9]{12}_[0-9]{1,32}\.zip"
+    r"|"
+    r"/REPORTS/CURRENT/Next_Day_Dispatch/"
+    r"PUBLIC_NEXT_DAY_DISPATCH_[0-9]{8}_[0-9]{1,32}\.zip"
     r")"
 )
 _ARCHIVE_ARTIFACT_PATH_RE = re.compile(

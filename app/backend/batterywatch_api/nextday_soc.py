@@ -30,6 +30,7 @@ _REQUIRED_COLUMNS = frozenset(
 _DUID_RE = re.compile(r"^[A-Z0-9_]{1,32}$")
 _ARTIFACT_RE = re.compile(r"^[0-9a-f]{64}$")
 _DISPATCH_INTERVAL_RE = re.compile(r"^(\d{8})(\d{3})$")
+_MAX_PHYSICAL_CSV_RECORDS = 1_500_000
 
 # These are the only FCAS service identities retained by this source path.  The
 # UnitSolution reports use the corresponding AEMO column names below.
@@ -427,6 +428,10 @@ def parse_nextday_unit_solution_soc(
     try:
         for row in reader:
             report_record_count += 1
+            if report_record_count > _MAX_PHYSICAL_CSV_RECORDS:
+                raise NextDaySocParseError(
+                    "physical CSV record limit exceeded"
+                )
             if expected_count is not None:
                 raise NextDaySocParseError("data follows report trailer")
             if row[:2] == ["C", "END OF REPORT"]:

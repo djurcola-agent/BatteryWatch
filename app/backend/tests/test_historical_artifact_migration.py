@@ -380,5 +380,125 @@ class HistoricalArtifactMigrationTests(unittest.TestCase):
             self.assertNotIn(forbidden, upper)
 
 
+    def test_allows_only_direct_current_nextday_identity_additively(self) -> None:
+        app_root = Path(__file__).resolve().parents[2]
+        migration_path = app_root / "migrations" / "012_current_nextday_artifacts.sql"
+        self.assertTrue(migration_path.exists(), "012 CURRENT Next Day migration is missing")
+
+        migration = migration_path.read_text(encoding="utf-8")
+        migrate_script = (app_root / "deploy" / "migrate.sh").read_text(encoding="utf-8")
+        upper = migration.upper()
+
+        self.assertIn("BEGIN;", upper)
+        self.assertIn("COMMIT;", upper)
+        self.assertIn("012_current_nextday_artifacts.sql", migrate_script)
+        migration_files = (
+            "001_initial_schema.sql",
+            "002_dispatch_scada_raw_ingestion.sql",
+            "003_dispatch_price_artifacts.sql",
+            "004_historical_backfill_ledger.sql",
+            "005_historical_source_artifacts.sql",
+            "006_artifact_recorded_event.sql",
+            "007_backfill_runtime_details.sql",
+            "008_authoritative_soc.sql",
+            "009_allow_archive_urls.sql",
+            "010_nextday_fcas.sql",
+            "011_fcas_validator_compatibility.sql",
+            "012_current_nextday_artifacts.sql",
+        )
+        self.assertEqual(
+            [name for name in migration_files if name in migrate_script],
+            list(migration_files),
+        )
+        self.assertEqual(
+            sum(migrate_script.count(name) for name in migration_files),
+            len(migration_files),
+        )
+        migration_positions = [
+            migrate_script.index(name) for name in migration_files
+        ]
+        self.assertEqual(migration_positions, sorted(migration_positions))
+        self.assertLess(
+            migrate_script.index("011_fcas_validator_compatibility.sql"),
+            migrate_script.index("012_current_nextday_artifacts.sql"),
+        )
+        self.assertEqual(
+            migration.count("DROP CONSTRAINT IF EXISTS"),
+            2,
+        )
+        self.assertEqual(migration.count("ADD CONSTRAINT"), 2)
+        self.assertIn("REPORTS/CURRENT/Next_Day_Dispatch/", migration)
+        self.assertIn("PUBLIC_NEXT_DAY_DISPATCH_", migration)
+        self.assertIn("artifact_published_at", migration)
+        self.assertIn("artifact_downloaded_at", migration)
+        self.assertIn("publication_id", migration)
+        self.assertIn("parent_artifact_sha256 IS NULL", migration)
+        self.assertIn("num_nonnulls(", migration)
+        self.assertIn(
+            "feed = 'nextday_soc'\n                AND parent_artifact_sha256 IS NULL\n                AND num_nonnulls(",
+            migration,
+        )
+        self.assertIn(
+            "feed = 'dispatch_price'\n            AND parent_artifact_sha256 IS NULL\n            AND source_url =",
+            migration,
+        )
+        self.assertIn(
+            "feed = 'dispatch_scada'\n            AND parent_artifact_sha256 IS NULL\n            AND source_url =",
+            migration,
+        )
+        self.assertIn(
+            "parent_artifact_sha256 IS NOT NULL\n            AND source_url =",
+            migration,
+        )
+        self.assertIn(
+            "'https://www.nemweb.com.au/REPORTS/CURRENT/Next_Day_Dispatch/'\n"
+            "                || filename\n"
+            "            AND num_nonnulls(",
+            migration,
+        )
+        identity = migration[
+            migration.index(
+                "ADD CONSTRAINT historical_source_artifacts_archive_identity_ck"
+            ):]
+        self.assertEqual(identity.count("feed = "), 5)
+        self.assertEqual(identity.count("source_url ="), 5)
+        self.assertEqual(identity.count("filename ="), 5)
+        for preserved_identity in (
+            "'https://www.nemweb.com.au/REPORTS/ARCHIVE/DispatchIS_Reports/' || filename\n"
+            "            AND filename = 'PUBLIC_DISPATCHIS_' || to_char(report_date, 'YYYYMMDD') || '.zip'",
+            "'https://www.nemweb.com.au/REPORTS/ARCHIVE/Dispatch_SCADA/' || filename\n"
+            "            AND filename = 'PUBLIC_DISPATCHSCADA_' || to_char(report_date, 'YYYYMMDD') || '.zip'",
+            "'https://www.nemweb.com.au/REPORTS/ARCHIVE/Next_Day_Dispatch/' || filename\n"
+            "            AND filename =\n"
+            "                'PUBLIC_NEXT_DAY_DISPATCH_' || to_char(report_date, 'YYYYMM') || '01.zip'",
+            "'https://www.nemweb.com.au/REPORTS/ARCHIVE/Next_Day_Dispatch/'\n"
+            "                || 'PUBLIC_NEXT_DAY_DISPATCH_'\n"
+            "                || to_char(report_date, 'YYYYMM') || '01.zip'\n"
+            "                || '#' || filename",
+            "'https://www.nemweb.com.au/REPORTS/CURRENT/Next_Day_Dispatch/'\n"
+            "                || filename\n"
+            "            AND num_nonnulls(",
+        ):
+            self.assertIn(preserved_identity, identity)
+        self.assertIn(
+            "            AND num_nonnulls(\n"
+            "                artifact_published_at,\n"
+            "                artifact_downloaded_at,\n"
+            "                publication_id\n"
+            "            ) = 3\n"
+            "            AND filename =\n"
+            "                'PUBLIC_NEXT_DAY_DISPATCH_' || to_char(report_date, 'YYYYMMDD')\n"
+            "                || '_' || publication_id || '.zip'",
+            identity,
+        )
+        self.assertIn("DROP CONSTRAINT IF EXISTS historical_source_artifacts_nested_metadata_ck", migration)
+        self.assertIn("DROP CONSTRAINT IF EXISTS historical_source_artifacts_archive_identity_ck", migration)
+        for forbidden in ("DROP TABLE", "DROP COLUMN", "TRUNCATE ", "DELETE FROM", "UPDATE "):
+            self.assertNotIn(forbidden, upper)
+        self.assertNotIn("SOURCE_URL LIKE", upper)
+        self.assertNotIn("SOURCE_URL ~", upper)
+        self.assertEqual(migrate_script.count('--dbname="$database_url"'), 11)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -43,6 +43,8 @@ psql --dbname="$database_url" --no-psqlrc --set=ON_ERROR_STOP=1 \
   --file="$app_dir/migrations/010_nextday_fcas.sql"
 psql -d "$database_url" --no-psqlrc --set=ON_ERROR_STOP=1 \
   --file="$app_dir/migrations/011_fcas_validator_compatibility.sql"
+psql -d "$database_url" --no-psqlrc --set=ON_ERROR_STOP=1 \
+  --file="$app_dir/migrations/012_current_nextday_artifacts.sql"
 psql --dbname="$database_url" --no-psqlrc --set=ON_ERROR_STOP=1 --tuples-only --no-align \
   <<'SQL'
 SELECT count(*) = 15

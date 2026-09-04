@@ -303,6 +303,22 @@ class NextDaySocParserTests(unittest.TestCase):
         )
         self.assertEqual(observation.publication_latency_seconds, 86_700)
 
+    def test_rejects_physical_csv_records_over_hard_limit_before_trailer(self) -> None:
+        maximum_records = 1_500_000
+        metadata, header = self.payload.splitlines()[:2]
+        payload = (
+            metadata + "\n"
+            + header + "\n"
+            + "X\n" * (maximum_records - 2)
+            + 'C,"END OF REPORT",1\n'
+        )
+
+        with self.assertRaisesRegex(
+            NextDaySocParseError,
+            "physical CSV record limit exceeded",
+        ):
+            self.parse(payload)
+
     def test_rejects_wrong_version_duplicate_rows_and_bad_trailer_count(self) -> None:
         duplicate = self.payload.replace(
             'C,"END OF REPORT",6',
