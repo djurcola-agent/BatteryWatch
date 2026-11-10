@@ -343,6 +343,42 @@ class CurrentNextDayAdapterTests(unittest.TestCase):
                         html, index_url=NEXTDAY_CURRENT_INDEX_URL
                     )
 
+    def test_republished_report_date_keeps_final_current_listing_entry(self) -> None:
+        """AEMO can republish a report date with a later publication id.
+
+        The live CURRENT listing appends the replacement entry after the
+        original row, so the last listing entry per report date is the
+        authoritative CURRENT artifact.
+        """
+
+        original = _index_row(
+            "PUBLIC_NEXT_DAY_DISPATCH_20261028_1.zip", 8647057,
+            "Thursday, October 29, 2026 04:12 AM",
+        )
+        republished = _index_row(
+            "PUBLIC_NEXT_DAY_DISPATCH_20261028_2.zip", 8647059,
+            "Thursday, October 29, 2026 12:44 PM",
+        )
+        following = _index_row(
+            "PUBLIC_NEXT_DAY_DISPATCH_20261029_3.zip", 8422193,
+            "Friday, October 30, 2026 04:12 AM",
+        )
+        html = "<html><pre>" + original + republished + following + "</pre></html>"
+
+        references = discover_nextday_current_artifacts(
+            html, index_url=NEXTDAY_CURRENT_INDEX_URL
+        )
+
+        self.assertEqual(
+            tuple((item.report_date, item.publication_id, item.size_bytes)
+                  for item in references),
+            (
+                (date(2026, 10, 28), "2", 8647059),
+                (date(2026, 10, 29), "3", 8422193),
+            ),
+        )
+
+    def test_rejects_bad_listing_identity_and_unsafe_zip_evidence(self) -> None:
         reference = _reference(date(2026, 8, 29), size=1)
         invalid_zips = (
             b"not zip",

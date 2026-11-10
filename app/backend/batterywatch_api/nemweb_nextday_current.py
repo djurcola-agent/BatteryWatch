@@ -314,11 +314,17 @@ def discover_nextday_current_artifacts(
         )
         existing = references.get(report_date)
         if existing is not None:
-            # A report date has one authoritative CURRENT identity.  Even an
-            # identical second anchor is rejected rather than silently hidden.
-            raise NemwebNextDayCurrentError(
-                "duplicate or conflicting Next Day CURRENT report date"
-            )
+            # AEMO can republish a report date with a later publication id
+            # and appends the replacement entry after the original row in the
+            # CURRENT listing (observed live for 2026-10-28 on 2026-10-29).
+            # The last listing entry per report date is the authoritative
+            # CURRENT artifact identity; a second entry without a later
+            # publication id remains a fail-closed conflict.
+            if publication_id <= existing.publication_id:
+                raise NemwebNextDayCurrentError(
+                    "conflicting Next Day CURRENT report date republished "
+                    "without a later publication id"
+                )
         references[report_date] = reference
 
     if not references:
